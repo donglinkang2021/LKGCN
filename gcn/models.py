@@ -188,3 +188,93 @@ class AttentionGCN(nn.Module):
         Q_i = self.item_embed(item)
         A_ui = attention_DotProduct(P_u, Q_i)
         return self.fc(A_ui @ Q_i)
+    
+class DemoGCN(nn.Module):
+    def __init__(self, n_users:int, m_items:int, embed_dim:int, n_layers:int, A_norm:torch.FloatTensor):
+        """
+        graph convolution
+
+        Parameters
+        ----------
+        @param input_dim: input dimension
+        @param output_dim: output dimension
+        @param self_loop: whether to add self-loop
+        @param norm: whether to normalize
+        """
+        super(DemoGCN, self).__init__()
+        self.weights = nn.Parameter(torch.rand(embed_dim, 1).float())
+        self.A_norm = A_norm # (n_users, m_items)
+        self.n_layers = n_layers
+
+        self.user_embed = torch.nn.Embedding(
+            num_embeddings = n_users, embedding_dim = embed_dim
+        )
+        self.item_embed = torch.nn.Embedding(
+            num_embeddings = m_items, embedding_dim = embed_dim
+        )
+        self._init_weight()
+
+    def _init_weight(self):
+        for param in self.parameters():
+            nn.init.normal_(param, std=0.1)
+
+    def compute_embedding(self):
+        """
+        what LightGCN do
+        """
+        users_embs = []
+        items_embs = []
+        users_emb = self.user_embed.weight
+        items_emb = self.item_embed.weight
+        users_embs.append(users_emb)
+        items_embs.append(items_emb)
+        for layer in range(self.n_layers - 1):
+            users_emb = users_emb + self.A_norm @ items_emb
+            items_emb = self.A_norm.T @ users_emb + items_emb
+            users_embs.append(users_emb)
+            items_embs.append(items_emb)
+
+        users_emb = torch.stack(users_embs, dim=1)
+        users_emb = torch.mean(users_emb, dim=1)
+        items_emb = torch.stack(items_embs, dim=1)
+        items_emb = torch.mean(items_emb, dim=1)
+        return users_emb, items_emb
+
+        
+    def forward(self, user, item):
+        """
+        @param X: feature inputs, (m_items, embed_dim)
+        @return: output (m_items, 1)
+        """
+        users_emb, items_emb = self.compute_embedding()
+        users_emb = users_emb[user]
+        items_emb = items_emb[item]
+        inner_pro = torch.mul(users_emb, items_emb)
+        gamma     = torch.sum(inner_pro, dim=1)
+        return gamma
+        
+class AttentionMF(nn.Module):
+    def __init__(self, n_users:int, m_items:int, embed_dim:int):
+        super(AttentionMF, self).__init__()
+        self.user_embed = torch.nn.Embedding(
+            num_embeddings = n_users, embedding_dim = embed_dim
+        )
+        self.item_embed = torch.nn.Embedding(
+            num_embeddings = m_items, embedding_dim = embed_dim
+        )
+        self._init_weight()
+
+    def _init_weight(self):
+        for param in self.parameters():
+            nn.init.normal_(param, std=0.1)
+        
+    def forward(self, user, item):
+        """
+        @param user: torch.LongTensor of shape (batch_size, )
+        @param item: torch.LongTensor of shape (batch_size, )
+        @return scores: torch.FloatTensor of shape (batch_size,)
+        """
+        P_u = self.user_embed(user)
+        Q_i = self.item_embed(item)
+        Q_i = torch.matmul(attention_DotProduct(P_u, Q_i), Q_i)
+        return torch.sum(P_u * Q_i, dim=1) 
