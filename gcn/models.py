@@ -101,7 +101,7 @@ class LightGCN(nn.Module):
 
     def _init_weight(self):
         for param in self.parameters():
-            nn.init.normal_(param, std=0.1)
+            nn.init.normal_(param, std=0.01)
     
     def computer(self):
         """
@@ -176,7 +176,7 @@ class AttentionGCN(nn.Module):
 
     def _init_weight(self):
         for param in self.parameters():
-            nn.init.normal_(param, std=0.1)
+            nn.init.normal_(param, std=0.01)
         
     def forward(self, user, item):
         """
@@ -216,7 +216,7 @@ class DemoGCN(nn.Module):
 
     def _init_weight(self):
         for param in self.parameters():
-            nn.init.normal_(param, std=0.1)
+            nn.init.normal_(param, std=0.01)
 
     def compute_embedding(self):
         """
@@ -266,7 +266,7 @@ class AttentionMF(nn.Module):
 
     def _init_weight(self):
         for param in self.parameters():
-            nn.init.normal_(param, std=0.1)
+            nn.init.normal_(param, std=0.01)
         
     def forward(self, user, item):
         """
@@ -276,5 +276,6 @@ class AttentionMF(nn.Module):
         """
         P_u = self.user_embed(user)
         Q_i = self.item_embed(item)
-        Q_i = torch.matmul(attention_DotProduct(P_u, Q_i), Q_i)
+        # P_u = torch.matmul(attention_DotProduct(P_u, P_u), P_u)
+        # Q_i = torch.matmul(attention_DotProduct(P_u, P_u), Q_i)
         return torch.sum(P_u * Q_i, dim=1) 
