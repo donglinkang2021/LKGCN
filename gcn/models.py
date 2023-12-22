@@ -2,6 +2,20 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+
+def get_ratings(model, user_id, item_ids):
+    """
+    获取用户的评分 0~1
+    @param model: torch.nn.Module
+    @param user: torch.LongTensor of shape (1, )
+    @param item: torch.LongTensor of shape (m, ) m <= m_items
+    @return rating: torch.FloatTensor of shape (1, m)
+    """
+    user_emb = model.user_embed(user_id)
+    item_emb = model.item_embed(item_ids)
+    rating = F.sigmoid(torch.matmul(user_emb, item_emb.t()))
+    return rating
+
 class PureMF(nn.Module):
     def __init__(self, n_users, n_items, n_factors):
         super().__init__()
@@ -23,29 +37,6 @@ class PureMF(nn.Module):
         Q_i = self.item_embed(item)
         scores = (P_u * Q_i).sum(dim=1)
         return scores
-    
-class SigmoidMF(nn.Module):
-    def __init__(self, n_users, n_items, n_factors):
-        super().__init__()
-        self.user_embed = nn.Embedding(n_users, n_factors)
-        self.item_embed = nn.Embedding(n_items, n_factors)
-        self._init_weight()
-        self.sigmoid = nn.Sigmoid()
-
-    def _init_weight(self):
-        for param in self.parameters():
-            nn.init.normal_(param, std=0.01)
-
-    def forward(self, user, item):
-        """
-        @param user: torch.LongTensor of shape (batch_size, )
-        @param item: torch.LongTensor of shape (batch_size, )
-        @return scores: torch.FloatTensor of shape (batch_size,)
-        """
-        P_u = self.user_embed(user)
-        Q_i = self.item_embed(item)
-        scores = (P_u * Q_i).sum(dim=1)
-        return self.sigmoid(scores)
     
 class SimplifiedGCN(nn.Module):
     def __init__(self, input_dim, output_dim, self_loop=True, norm=True):
@@ -98,10 +89,10 @@ class LightGCN(nn.Module):
             |R^T, I|
         """ 
         
-        self.embedding_user = torch.nn.Embedding(
+        self.user_embed = torch.nn.Embedding(
             num_embeddings=self.num_users, embedding_dim=self.latent_dim
         )
-        self.embedding_item = torch.nn.Embedding(
+        self.item_embed = torch.nn.Embedding(
             num_embeddings=self.num_items, embedding_dim=self.latent_dim
         )
         self.Sigmoid = nn.Sigmoid()
@@ -116,8 +107,8 @@ class LightGCN(nn.Module):
         """
         propagate methods for lightGCN
         """       
-        users_emb = self.embedding_user.weight
-        items_emb = self.embedding_item.weight
+        users_emb = self.user_embed.weight
+        items_emb = self.item_embed.weight
         all_emb = torch.cat([users_emb, items_emb])  # (num_users + num_items, latent_dim)
         embs = [all_emb]
         for layer in range(self.n_layers):
@@ -171,17 +162,21 @@ def attention_DotProduct(queries, keys):
     )
 
 class AttentionGCN(nn.Module):
-    def __init__(self, n_users:int, m_items:int, embed_dim:int, self_loop=False, norm=False):
+    def __init__(self, n_users:int, m_items:int, embed_dim:int):
         super(AttentionGCN, self).__init__()
-        self.self_loop = self_loop
-        self.norm = norm
-        self.weights = nn.Parameter(torch.rand(embed_dim, 1).float())
+        self.fc = nn.Linear(embed_dim, 1)
+
         self.user_embed = torch.nn.Embedding(
             num_embeddings = n_users, embedding_dim = embed_dim
         )
         self.item_embed = torch.nn.Embedding(
             num_embeddings = m_items, embedding_dim = embed_dim
         )
+        self._init_weight()
+
+    def _init_weight(self):
+        for param in self.parameters():
+            nn.init.normal_(param, std=0.1)
         
     def forward(self, user, item):
         """
@@ -191,14 +186,5 @@ class AttentionGCN(nn.Module):
         """
         P_u = self.user_embed(user)
         Q_i = self.item_embed(item)
-        A = attention_DotProduct(P_u, Q_i)
-
-        if self.self_loop:   # add self-loop 
-            A = A + torch.eye(A.size(0))    # \tilde{A} = A + I (num_nodes, num_nodes)
-        if self.norm:        # normalize
-            D = torch.sum(A, axis=0)        # D                 (num_nodes,)
-            D = torch.diag(D)               # \tilde{D}         (num_nodes, num_nodes)
-            D = torch.sqrt(torch.inverse(D))# \tilde{D}^{-1/2}  (num_nodes, num_nodes)
-            A = D @ A @ D                   # \hat{A}           (num_nodes, num_nodes)
-
-        return A @ Q_i @ self.weights       # \hat{A}XW         (num_nodes, output_dim)
+        A_ui = attention_DotProduct(P_u, Q_i)
+        return self.fc(A_ui @ Q_i)
