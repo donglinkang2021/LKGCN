@@ -25,7 +25,7 @@ class PureMF(nn.Module):
 
     def _init_weight(self):
         for param in self.parameters():
-            nn.init.normal_(param, std=0.01)
+            nn.init.normal_(param, std=0.02)
 
     def forward(self, user, item):
         """
@@ -216,7 +216,7 @@ class DemoGCN(nn.Module):
 
     def _init_weight(self):
         for param in self.parameters():
-            nn.init.normal_(param, std=0.01)
+            nn.init.normal_(param, std=0.1)
 
     def compute_embedding(self):
         """
