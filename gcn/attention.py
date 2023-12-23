@@ -7,6 +7,8 @@ import torch.nn.functional as F
 import math
 
 """
+dataset: ml-lastest-small
+
 baseline:
 - mse task 100 epoch
 - bpr task 20 epoch
@@ -17,6 +19,13 @@ PureMF
     - PureMF Min RMSE: 1.2579 at epoch 7
 - BPR:
     - PureMF Max Recall@10: 0.0590 at epoch 15
+
+LightGCN
+- MSE:
+    - LightGCN Max Recall@10: 0.0066 at epoch 54
+    - LightGCN Min RMSE: 1.5265 at epoch 34
+- BPR:
+    - LightGCN Max Recall@10: 0.0492 at epoch 15
 """
 
 def attention_DotProduct(queries, keys):
@@ -82,8 +91,8 @@ class AttMFui(nn.Module):
 class AttMFiu(nn.Module):
     """
     - MSE:
-        - AttMFiu Max Recall@10: 0.0410 at epoch 1
-        - AttMFiu Min RMSE: 1.2542 at epoch 11
+        - AttMFiu Max Recall@10: 0.0344 at epoch 1
+        - AttMFiu Min RMSE: 1.2482 at epoch 11
     - BPR:
         - AttMFiu Max Recall@10: 0.0410 at epoch 9
         
@@ -167,7 +176,7 @@ class AttMFii(nn.Module):
     we can compare the result with AttMFiu, and find that AttMFii's result is better than AttMFiu's
 
             AttMFii   AttMFiu
-    RMSE:      1.0712 < 1.2542
+    RMSE:      1.0712 < 1.2482
     Recall@10: 0.0459 > 0.0410
 
     so we can conclude that the order of the aggregation matters
