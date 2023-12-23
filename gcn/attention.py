@@ -170,7 +170,9 @@ class AttMFii(nn.Module):
         - AttMFii Max Recall@10: 0.0344 at epoch 1
         - AttMFii Min RMSE: 1.0712 at epoch 93
     - BPR:
-        - AttMFii Max Recall@10: 0.0459 at epoch 11    
+        - AttMFii Max Recall@10: 0.0459 at epoch 11
+
+    Get the **best Recall@10** above all the attention models, but the RMSE is not the best.    
 
     note: here we add the item info to the user embedding at first, and then add the updated user info to the item embedding, this is okay.
     we can compare the result with AttMFiu, and find that AttMFii's result is better than AttMFiu's
@@ -211,6 +213,15 @@ class AttMFii(nn.Module):
         return torch.sum(P_u * Q_i, dim=1) 
 
 class SelfAttMFii(nn.Module):
+    """
+    - MSE:
+        - SelfAttMFii Max Recall@10: 0.0344 at epoch 3
+        - SelfAttMFii Min RMSE: 1.0251 at epoch 38
+    - BPR:
+        - SelfAttMFii Max Recall@10: 0.0426 at epoch 9
+
+    Get the **best RMSE** above all the models, but the recall@10 is not the best.
+    """
     def __init__(self, n_users:int, m_items:int, embed_dim:int):
         super(SelfAttMFii, self).__init__()
         self.user_embed = torch.nn.Embedding(
@@ -233,12 +244,6 @@ class SelfAttMFii(nn.Module):
         """
         P_u = self.user_embed(user)
         Q_i = self.item_embed(item)
-        # P_u = torch.matmul(attention_DotProduct(P_u, P_u), P_u)
-        # Q_i = torch.matmul(attention_DotProduct(Q_i, Q_i), Q_i)
-
-        # 实现neighborhood aggregation
-        # item -> user
-        # P_u = torch.matmul(attention_DotProduct(P_u, Q_i), Q_i)
-        # user -> item
-        # Q_i = torch.matmul(attention_DotProduct(Q_i, P_u), P_u)
+        P_u = torch.matmul(attention_DotProduct(P_u, P_u), P_u)
+        Q_i = torch.matmul(attention_DotProduct(Q_i, Q_i), Q_i)
         return torch.sum(P_u * Q_i, dim=1)     
