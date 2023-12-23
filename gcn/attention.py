@@ -434,3 +434,41 @@ class AttGCN(nn.Module):
         P_u = torch.mean(P_u, dim=1)
         Q_i = torch.mean(Q_i, dim=1)
         return torch.sum(P_u * Q_i, dim=1) 
+    
+class BiasAtMF(nn.Module):
+    """
+    with embed_dim = 64
+    BPR:
+    BiasMF Max Recall@10: 0.0869 at epoch 14
+    MSE:
+    BiasMF Max Recall@10: 0.0344 at epoch 69
+    BiasMF Min RMSE: 1.1977 at epoch 2
+    best model now
+    """
+    def __init__(self, n_users, n_items, n_factors):
+        super(BiasAtMF, self).__init__()
+        self.user_embed = nn.Embedding(num_embeddings=n_users, embedding_dim=n_factors)
+        self.item_embed = nn.Embedding(num_embeddings=n_items, embedding_dim=n_factors)
+        self.user_bias = nn.Embedding(n_users, 1)
+        self.item_bias = nn.Embedding(n_items, 1)
+
+        for param in self.parameters():
+            nn.init.normal_(param, std=0.02)
+
+    def forward(self, user_id, item_id):
+        """
+        @param user: torch.LongTensor of shape (batch_size, )
+        @param item: torch.LongTensor of shape (batch_size, )
+        @return scores: torch.FloatTensor of shape (batch_size,)
+        """
+        P_u = self.user_embed(user_id)
+        Q_i = self.item_embed(item_id)
+        b_u = self.user_bias(user_id).flatten()
+        b_i = self.item_bias(item_id).flatten()
+        # 实现neighborhood aggregation
+        # item -> user
+        P_u = torch.matmul(attention_DotProduct(P_u, Q_i), Q_i)
+        # user -> item
+        Q_i = torch.matmul(attention_DotProduct(Q_i, P_u), P_u)
+        scores = (P_u * Q_i).sum(axis=1) + b_u + b_i
+        return scores

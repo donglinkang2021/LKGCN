@@ -54,6 +54,13 @@ class BiasMF(nn.Module):
     MSE:
     BiasMF Max Recall@10: 0.0164 at epoch 67
     BiasMF Min RMSE: 1.1863 at epoch 3
+    with embed_dim = 64
+    BPR:
+    BiasMF Max Recall@10: 0.0869 at epoch 14
+    MSE:
+    BiasMF Max Recall@10: 0.0344 at epoch 69
+    BiasMF Min RMSE: 1.1977 at epoch 2
+    best model now
     """
     def __init__(self, n_users, n_items, n_factors):
         super(BiasMF, self).__init__()
