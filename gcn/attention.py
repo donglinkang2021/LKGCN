@@ -290,3 +290,139 @@ class Samfii(nn.Module):
         # user -> item
         Q_i = torch.matmul(attention_DotProduct(Q_i, P_u), P_u)
         return torch.sum(P_u * Q_i, dim=1)     
+    
+
+from gcn.posenc import PositionalEncoding
+
+class Pesamf(nn.Module):
+    """
+    mix PeMF and SelfAttMFii  
+
+    - MSE:
+        - Pesamf Max Recall@10: 0.0049 at epoch 1
+        - Pesamf Min RMSE: 1.0985 at epoch 5
+    - BPR:
+        - Pesamf Max Recall@10: 0.0426 at epoch 7
+
+    not so good
+    """
+    def __init__(self, n_users:int, m_items:int, embed_dim:int):
+        super(Pesamf, self).__init__()
+        self.embed_dim = embed_dim
+        self.user_embed = torch.nn.Embedding(
+            num_embeddings = n_users, embedding_dim = embed_dim
+        )
+        self.item_embed = torch.nn.Embedding(
+            num_embeddings = m_items, embedding_dim = embed_dim
+        )
+        self.pos_encoding = PositionalEncoding(embed_dim)
+        self._init_weight()
+
+    def _init_weight(self):
+        for param in self.parameters():
+            nn.init.normal_(param, std=0.01)
+        
+    def forward(self, user, item):
+        """
+        @param user: torch.LongTensor of shape (batch_size, )
+        @param item: torch.LongTensor of shape (batch_size, )
+        @return scores: torch.FloatTensor of shape (batch_size,)
+        """
+        P_u = self.pos_encoding(self.user_embed(user) * math.sqrt(self.embed_dim))
+        Q_i = self.pos_encoding(self.item_embed(item) * math.sqrt(self.embed_dim))
+        P_u = torch.matmul(attention_DotProduct(P_u, P_u), P_u)
+        Q_i = torch.matmul(attention_DotProduct(Q_i, Q_i), Q_i)
+        # 实现neighborhood aggregation
+        # item -> user
+        # P_u = torch.matmul(attention_DotProduct(P_u, Q_i), Q_i)
+        # # user -> item
+        # Q_i = torch.matmul(attention_DotProduct(Q_i, P_u), P_u)
+        return torch.sum(P_u * Q_i, dim=1) 
+
+
+class Peamfii(nn.Module):
+    """
+    mix PeMF and AttMFii  
+
+    - MSE:
+        - Peamfii Max Recall@10: 0.0082 at epoch 54
+        - Peamfii Min RMSE: 1.1313 at epoch 3
+    - BPR:
+        - Peamfii Max Recall@10: 0.0426 at epoch 3
+    """
+    def __init__(self, n_users:int, m_items:int, embed_dim:int):
+        super(Peamfii, self).__init__()
+        self.embed_dim = embed_dim
+        self.user_embed = torch.nn.Embedding(
+            num_embeddings = n_users, embedding_dim = embed_dim
+        )
+        self.item_embed = torch.nn.Embedding(
+            num_embeddings = m_items, embedding_dim = embed_dim
+        )
+        self.pos_encoding = PositionalEncoding(embed_dim)
+        self._init_weight()
+
+    def _init_weight(self):
+        for param in self.parameters():
+            nn.init.normal_(param, std=0.01)
+        
+    def forward(self, user, item):
+        """
+        @param user: torch.LongTensor of shape (batch_size, )
+        @param item: torch.LongTensor of shape (batch_size, )
+        @return scores: torch.FloatTensor of shape (batch_size,)
+        """
+        P_u = self.pos_encoding(self.user_embed(user) * math.sqrt(self.embed_dim))
+        Q_i = self.pos_encoding(self.item_embed(item) * math.sqrt(self.embed_dim))
+        # 实现neighborhood aggregation
+        # item -> user
+        P_u = torch.matmul(attention_DotProduct(P_u, Q_i), Q_i)
+        # user -> item
+        Q_i = torch.matmul(attention_DotProduct(Q_i, P_u), P_u)
+        return torch.sum(P_u * Q_i, dim=1) 
+
+class DeePeamfii(nn.Module):
+    """
+    deep Peamfii
+    """
+    def __init__(self, n_users:int, m_items:int, embed_dim:int):
+        super(DeePeamfii, self).__init__()
+        self.n_layers = 2
+        self.embed_dim = embed_dim
+        self.user_embed = torch.nn.Embedding(
+            num_embeddings = n_users, embedding_dim = embed_dim
+        )
+        self.item_embed = torch.nn.Embedding(
+            num_embeddings = m_items, embedding_dim = embed_dim
+        )
+        self.pos_encoding = PositionalEncoding(embed_dim)
+        self._init_weight()
+
+    def _init_weight(self):
+        for param in self.parameters():
+            nn.init.normal_(param, std=0.01)
+        
+    def forward(self, user, item):
+        """
+        @param user: torch.LongTensor of shape (batch_size, )
+        @param item: torch.LongTensor of shape (batch_size, )
+        @return scores: torch.FloatTensor of shape (batch_size,)
+        """
+        P_u = self.pos_encoding(self.user_embed(user) * math.sqrt(self.embed_dim))
+        Q_i = self.pos_encoding(self.item_embed(item) * math.sqrt(self.embed_dim))
+        user_embeds = [P_u]
+        item_embeds = [Q_i]
+        for _ in range(self.n_layers):
+            # 实现neighborhood aggregation
+            # item -> user
+            P_u = torch.matmul(attention_DotProduct(P_u, Q_i), Q_i)
+            # user -> item
+            Q_i = torch.matmul(attention_DotProduct(Q_i, P_u), P_u)
+            user_embeds.append(P_u)
+            item_embeds.append(Q_i)
+
+        P_u = torch.stack(user_embeds, dim=1)
+        Q_i = torch.stack(item_embeds, dim=1)
+        P_u = torch.mean(P_u, dim=1)
+        Q_i = torch.mean(Q_i, dim=1)
+        return torch.sum(P_u * Q_i, dim=1) 
