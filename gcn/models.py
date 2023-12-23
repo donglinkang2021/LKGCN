@@ -17,6 +17,14 @@ def get_ratings(model, user_id, item_ids):
     return rating
 
 class PureMF(nn.Module):
+    """
+    with embed_dim = 64
+    BPR:
+    PureMF Max Recall@10: 0.0770 at epoch 14
+    MSE:
+    PureMF Max Recall@10: 0.0344 at epoch 60
+    PureMF Min RMSE: 1.2533 at epoch 4
+    """
     def __init__(self, n_users, n_items, n_factors):
         super().__init__()
         self.user_embed = nn.Embedding(n_users, n_factors)
@@ -37,7 +45,39 @@ class PureMF(nn.Module):
         Q_i = self.item_embed(item)
         scores = (P_u * Q_i).sum(dim=1)
         return scores
-    
+
+class BiasMF(nn.Module):
+    """
+    with embed_dim = 32
+    BPR:
+    BiasMF Max Recall@10: 0.0721 at epoch 20
+    MSE:
+    BiasMF Max Recall@10: 0.0164 at epoch 67
+    BiasMF Min RMSE: 1.1863 at epoch 3
+    """
+    def __init__(self, n_users, n_items, n_factors):
+        super(BiasMF, self).__init__()
+        self.user_embed = nn.Embedding(num_embeddings=n_users, embedding_dim=n_factors)
+        self.item_embed = nn.Embedding(num_embeddings=n_items, embedding_dim=n_factors)
+        self.user_bias = nn.Embedding(n_users, 1)
+        self.item_bias = nn.Embedding(n_items, 1)
+
+        for param in self.parameters():
+            nn.init.normal_(param, std=0.02)
+
+    def forward(self, user_id, item_id):
+        """
+        @param user: torch.LongTensor of shape (batch_size, )
+        @param item: torch.LongTensor of shape (batch_size, )
+        @return scores: torch.FloatTensor of shape (batch_size,)
+        """
+        P_u = self.user_embed(user_id)
+        Q_i = self.item_embed(item_id)
+        b_u = self.user_bias(user_id).flatten()
+        b_i = self.item_bias(item_id).flatten()
+        scores = (P_u * Q_i).sum(axis=1) + b_u + b_i
+        return scores
+
 class SimplifiedGCN(nn.Module):
     def __init__(self, input_dim, output_dim, self_loop=True, norm=True):
         """
