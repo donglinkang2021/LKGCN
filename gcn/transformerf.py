@@ -3,6 +3,33 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
+class PositionalEncoding(nn.Module):  #@save
+    def __init__(self, embed_dim, max_len=2000):
+        super().__init__()
+        self.P = torch.zeros((max_len, embed_dim))
+        X = torch.arange(
+            max_len, 
+            dtype=torch.float32
+        ).reshape(-1, 1) / torch.pow(
+            10000, torch.arange(
+                0, embed_dim, 2, dtype=torch.float32
+            ) / embed_dim
+        )
+        self.P[:, 0::2] = torch.sin(X)
+        self.P[:, 1::2] = torch.cos(X)
+
+    def forward(self, X):
+        """
+        Parameters
+        ----------
+        @param X : torch.Tensor
+            Shape (batch_size, embed_dim)
+        @return torch.Tensor
+            Shape (batch_size, embed_dim)
+        """
+        X = X + self.P[:X.shape[0], :].to(X.device)
+        return X
+
 class DotProductAttention(nn.Module):  
     def __init__(self, dropout):
         """Scaled dot product attention."""
@@ -137,14 +164,23 @@ class CrossBlock(nn.Module):
         return self.addnorm2(Y, self.ffn(Y))
 
 class TransforMerF(nn.Module):
+    """
+    - MSE:
+        - TransforMerF Max Recall@10: 0.0066 at epoch 96
+        - TransforMerF Min RMSE: 1.0034 at epoch 64
+    - BPR:
+        - 
+    """
     def __init__(self, n_users:int, m_items:int, embed_dim:int, num_heads:int=8, dropout:float=0.1):
         super(TransforMerF, self).__init__()
+        self.embed_dim = embed_dim
         self.user_embed = torch.nn.Embedding(
             num_embeddings = n_users, embedding_dim = embed_dim
         )
         self.item_embed = torch.nn.Embedding(
             num_embeddings = m_items, embedding_dim = embed_dim
         )
+        self.pos_encoding = PositionalEncoding(embed_dim)
         self.uu_block = SelfBlock(embed_dim, num_heads, dropout)
         self.ii_block = SelfBlock(embed_dim, num_heads, dropout)
         self.ui_block = CrossBlock(embed_dim, num_heads, dropout)
@@ -160,8 +196,8 @@ class TransforMerF(nn.Module):
         @param item: torch.LongTensor of shape (batch_size, )
         @return scores: torch.FloatTensor of shape (batch_size,)
         """
-        P_u = self.user_embed(user)
-        Q_i = self.item_embed(item)
+        P_u = self.pos_encoding(self.user_embed(user) * math.sqrt(self.embed_dim))
+        Q_i = self.pos_encoding(self.item_embed(item) * math.sqrt(self.embed_dim))
         P_u = self.uu_block(P_u)
         Q_i = self.ii_block(Q_i)
         Q_i = self.ui_block(P_u, Q_i)
