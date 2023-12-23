@@ -151,8 +151,8 @@ class TransforMerF(nn.Module):
         self._init_weight()
 
     def _init_weight(self):
-        nn.init.normal_(self.user_embed.weight, std=0.1)
-        nn.init.normal_(self.item_embed.weight, std=0.1)
+        nn.init.normal_(self.user_embed.weight, std=0.01)
+        nn.init.normal_(self.item_embed.weight, std=0.01)
         
     def forward(self, user, item):
         """
