@@ -381,12 +381,18 @@ class Peamfii(nn.Module):
         Q_i = torch.matmul(attention_DotProduct(Q_i, P_u), P_u)
         return torch.sum(P_u * Q_i, dim=1) 
 
-class DeePeamfii(nn.Module):
+class AttGCN(nn.Module):
     """
-    deep Peamfii
+    deep AttGCN
+
+    - MSE:
+        - AttGCN Max Recall@10: 0.0115 at epoch 1
+        - AttGCN Min RMSE: 1.1280 at epoch 5
+    - BPR:
+        - AttGCN Max Recall@10: 0.0311 at epoch 1
     """
     def __init__(self, n_users:int, m_items:int, embed_dim:int):
-        super(DeePeamfii, self).__init__()
+        super(AttGCN, self).__init__()
         self.n_layers = 2
         self.embed_dim = embed_dim
         self.user_embed = torch.nn.Embedding(
@@ -410,6 +416,8 @@ class DeePeamfii(nn.Module):
         """
         P_u = self.pos_encoding(self.user_embed(user) * math.sqrt(self.embed_dim))
         Q_i = self.pos_encoding(self.item_embed(item) * math.sqrt(self.embed_dim))
+
+        # like LightGCN but attention here
         user_embeds = [P_u]
         item_embeds = [Q_i]
         for _ in range(self.n_layers):
